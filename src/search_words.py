@@ -50,12 +50,6 @@ def searchRelatedWords(_word, _driver):
     print(' '.join(_results))
     return _results, _driver
 
-def offload(_filename):
-    # global path
-    _path = f'./data/{_filename}.json'
-    jsonfile = open(_path)
-    return json.load(jsonfile)
-
 # 関連語を辞書オブジェクトに追加
 def related_words(_data):
 
@@ -76,7 +70,7 @@ def related_words(_data):
                     print(e)
                     _driver = setup_driver()
                     print("change sleep mode")
-                    time.sleep(10)
+                    time.sleep(3)
                     print("restart")
 
         _labels = _words + _results
@@ -86,6 +80,13 @@ def related_words(_data):
     
     return _data
 
+
+def offload(_filename):
+    # global path
+    _path = f'./data/{_filename}.json'
+    jsonfile = open(_path)
+    return json.load(jsonfile)
+
 # jsonファイル化
 def upload(_filename, _submit_dict):
   _jsonfile = f"./data/{_filename}.json"
@@ -94,10 +95,78 @@ def upload(_filename, _submit_dict):
   json.dump(_json_dic , _jsonfile_open , ensure_ascii=False , indent=4)
   _jsonfile_open.close()
 
-if __name__ == '__main__':
-    driver = setup_driver()
-    print(searchRelatedWords("男性", driver))
+def resize_data(_data:dict)->list:
+    _results = []
+    for key in _data:
+        _labels = _data[key]["labels"]
+        _words = _labels.split(' ')
+        _results+=_words
 
+    _results = list(dict.fromkeys(_results))
+    return _results
+
+def append_related(_words:list)->dict:
+    _driver = setup_driver()
+    _result = {}
+    for word in tqdm(_words):
+        while word:
+            try:
+                _related, _driver = searchRelatedWords(word, _driver)
+                _result[word] = _related
+                break
+            except ValueError as e:
+                print(e)
+                _driver = setup_driver()
+                print("change sleep mode")
+                time.sleep(3)
+                print("restart")
+    
+    return _result
+
+def re_labeling(_data:dict, _words_dict:dict)->dict:
+    print("start relabeling")
+    for key in tqdm(_data):
+        _labels = _data[key]['labels']
+        _results = []
+        _words = _labels.split(' ')
+        _words = list(dict.fromkeys(_words))
+        for word in _words:
+            for item in _words_dict:
+                if word == item:
+                    _results += _words_dict[item]
+
+        _labels = _words + _results
+        _labels = list(dict.fromkeys(_labels))
+        _labels = ' '.join(_labels)
+        _data[key]['labels'] = _labels
+    
+    return _data
+
+def scraper(i):
+    name = f"Labels{i}"
+    data = offload(name)
+    print(f'start_scraper{name}')
+    re_data = related_words(data)
+    re_name = f'Labels{i}_thesaurus'
+    upload(re_name, re_data)
+    print(f'stop_scraper{name}')
+
+def scraper2(i):
+    name = f"Labels{i}"
+    data = offload(name)
+    print(f'start_scraper{name}')
+    _search_words = resize_data(data)
+    _related_words = append_related(_search_words)
+    re_data = re_labeling(data, _related_words)
+    re_name = f'Labels{i}_thesaurus'
+    upload(re_name, re_data)
+    print(f'stop_scraper{name}')
+
+
+if __name__ == '__main__':
+    # driver = setup_driver()
+    # print(searchRelatedWords("男性", driver))
+    scraper2(20)
 # soup = BeautifulSoup(r.text, 'html.parser')
 # t = soup.find_all('div')
 
